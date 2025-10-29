@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Simple Shooting Game (Score Display)</title>
+  <style>
+    body { margin:0; background:black; overflow:hidden; font-family: sans-serif; }
+    canvas { display:block; margin:auto; background:#111; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="400" height="600"></canvas>
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let player, bullets, enemies, keys, spawnIntervalId, gameOver, score;
+
+    function initGame() {
+      player = { 
+        x: canvas.width/2 - 15, 
+        y: canvas.height - 80, 
+        w: 40, h: 40, 
+        speed: 5,
+        img: new Image()
+      };
+      player.img.src = "player.png"; // ← your pixel art image filename
+      bullets = [];
+      enemies = [];
+      keys = {};
+      gameOver = false;
+      score = 0;
+
+      if (spawnIntervalId) clearInterval(spawnIntervalId);
+      spawnIntervalId = setInterval(spawnEnemy, 1000);
+    }
+
+    document.addEventListener("keydown", e => {
+      keys[e.key] = true;
+      if (e.key === " " && !gameOver) {
+        bullets.push({ x: player.x + player.w/2 - 2, y: player.y, w: 4, h: 10, speed: 7 });
+        e.preventDefault();
+      }
+      if ((e.key === "r" || e.key === "R") && gameOver) initGame();
+    });
+    document.addEventListener("keyup", e => keys[e.key] = false);
+
+    function spawnEnemy() {
+      if (gameOver) return;
+      const w = 30, h = 30;
+      enemies.push({
+        x: Math.random() * (canvas.width - w),
+        y: -h,
+        w, h,
+        speed: 1.5 + Math.random() * 1.5
+      });
+    }
+
+    function rectsOverlap(a, b) {
+      return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    }
+
+    function update() {
+      if (gameOver) return;
+
+      if (keys["ArrowLeft"] || keys["a"]) player.x -= player.speed;
+      if (keys["ArrowRight"] || keys["d"]) player.x += player.speed;
+      player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
+
+      for (let b of bullets) b.y -= b.speed;
+      bullets = bullets.filter(b => b.y + b.h > 0);
+
+      for (let e of enemies) e.y += e.speed;
+
+      // Bullet-enemy collision
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        const e = enemies[i];
+        for (let j = bullets.length - 1; j >= 0; j--) {
+          if (rectsOverlap(bullets[j], e)) {
+            bullets.splice(j, 1);
+            enemies.splice(i, 1);
+            score++;
+            break;
+          }
+        }
+      }
+
+      // Enemy-player collision
+      for (let e of enemies) {
+        if (rectsOverlap(e, player)) {
+          triggerGameOver();
+          return;
+        }
+      }
+
+      enemies = enemies.filter(e => e.y < canvas.height + e.h);
+    }
+
+    function triggerGameOver() {
+      gameOver = true;
+      if (spawnIntervalId) clearInterval(spawnIntervalId);
+    }
+
+    function draw() {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+
+      // Player
+      if (player.img.complete) {
+        ctx.drawImage(player.img, player.x, player.y, player.w, player.h);
+      } else {
+        ctx.fillStyle = "#3fe";
+        ctx.fillRect(player.x, player.y, player.w, player.h);
+      }
+
+      // Bullets
+      ctx.fillStyle = "#ff8";
+      bullets.forEach(b => ctx.fillRect(b.x, b.y, b.w, b.h));
+
+      // Enemies
+      ctx.fillStyle = "#f55";
+      enemies.forEach(e => ctx.fillRect(e.x, e.y, e.w, e.h));
+
+      // Live score (top-left)
+      ctx.fillStyle = "#fff";
+      ctx.font = "16px monospace";
+      ctx.textAlign = "left";
+      ctx.fillText("Score: " + score, 10, 20);
+
+      // Game Over screen
+      if (gameOver) {
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = "#fff";
+        ctx.textAlign = "center";
+        ctx.font = "36px sans-serif";
+        ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 30);
+
+        // ★ Show final score under “Game Over”
+        ctx.font = "24px monospace";
+        ctx.fillText("Your Score: " + score, canvas.width / 2, canvas.height / 2 + 10);
+
+        ctx.font = "18px sans-serif";
+        ctx.fillText("Press R to restart", canvas.width / 2, canvas.height / 2 + 50);
+        ctx.textAlign = "start";
+      }
+    }
+
+    function gameLoop() {
+      update();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    initGame();
+    gameLoop();
+  </script>
+</body>
+</html>
